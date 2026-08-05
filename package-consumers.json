@@ -6,7 +6,7 @@
       "package": "fiducia-client",
       "subdir": "clients/rust",
       "source": "fiducia-cloud/fiducia-clients",
-      "sourceSha": "0ff5f695c2ce440b19ae8104031ed2d47c080218",
+      "sourceSha": "e58ed9a0c186f6e9a55dcfb3eef71ea5c409fae0",
       "status": "coordinate-declared"
     }
   ]
