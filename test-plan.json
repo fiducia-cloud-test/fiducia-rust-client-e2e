@@ -31,14 +31,14 @@
       "fullName": "fiducia-cloud/fiducia-clients",
       "exists": true,
       "branch": "main",
-      "sha": "e58ed9a0c186f6e9a55dcfb3eef71ea5c409fae0",
+      "sha": "77f117527c1a805c86dc01b631b37748eab036a0",
       "visibility": "public"
     },
     {
       "fullName": "fiducia-cloud/fiducia-interfaces",
       "exists": true,
       "branch": "main",
-      "sha": "83a0532d160c28e1b75f2f9397561688a0a8ffd6",
+      "sha": "4dee6d9ed3b6783953c7e243cf39b5f1fbfe497d",
       "visibility": "public"
     }
   ],
@@ -65,6 +65,9 @@
     "immutableSourcePins": true,
     "pullRequestCredentials": false,
     "leastPrivilege": true,
-    "redactSecretsAndRawMedia": true
+    "redactSecretsAndRawMedia": true,
+    "protectedSourceIntegration": true,
+    "protectedSourceIntegrationStatus": "not-executed-unless-protected-lane-runs",
+    "productOverlayPreserved": true
   }
 }
