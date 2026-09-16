@@ -1,6 +1,9 @@
 use std::{env, fs, path::PathBuf, process};
 
-use ores_api_docs::{materialize_finalized_page_build, read_page_build_manifest, write_page_build_outputs};
+use ores_api_docs::{
+    analyze_page_source, materialize_finalized_page_build, read_page_build_manifest,
+    write_page_build_outputs,
+};
 
 fn main() {
     let root = unique_temp("valid");
@@ -78,6 +81,7 @@ pub async fn page() {}
 
     exercise_conflict_rejection();
     exercise_static_only_generator_requirement();
+    exercise_reserved_module_admission();
     fs::remove_dir_all(&root).unwrap();
     println!("fiducia-cloud-test ores-stack contract smoke passed");
 }
@@ -124,6 +128,41 @@ pub async fn page() {}
     let message = error.to_string();
     assert!(message.contains("requires sibling gen.rs"), "{message}");
     fs::remove_dir_all(&root).unwrap();
+}
+
+fn exercise_reserved_module_admission() {
+    let sync_page = r#"#[ores_page(renderer = "mash", delivery = "ssr_only")]
+pub fn page() {}
+"#;
+    let error = analyze_page_source("src/pages/sync/page.rs", sync_page)
+        .expect_err("page rendering ABI must stay async");
+    assert!(error.to_string().contains("must be async"));
+
+    let misplaced_generator = r#"#[ores_page(renderer = "mash", delivery = "ssr_only")]
+pub async fn page() {}
+pub async fn generate_static_params() {}
+"#;
+    let error = analyze_page_source("src/pages/misplaced/page.rs", misplaced_generator)
+        .expect_err("generator belongs in sibling gen.rs");
+    assert!(error.to_string().contains("belongs in sibling gen.rs"));
+
+    let hydrate_without_client = r#"#[ores_page(renderer = "leptos", delivery = "ssr_hydrate")]
+pub async fn page() {}
+"#;
+    let error = analyze_page_source("src/pages/hydrate/page.rs", hydrate_without_client)
+        .expect_err("hydration must declare a browser client entry");
+    assert!(error.to_string().contains("require client"));
+
+    let invalid_source = r#"#[ores_page(
+renderer = "mash",
+delivery = "ssr_only",
+data_sources("sql:user")
+)]
+pub async fn page() {}
+"#;
+    let error = analyze_page_source("src/pages/source/page.rs", invalid_source)
+        .expect_err("data source namespaces are closed");
+    assert!(error.to_string().contains("rpc:<operation> or orm:<read-surface>"));
 }
 
 fn unique_temp(suffix: &str) -> PathBuf {
