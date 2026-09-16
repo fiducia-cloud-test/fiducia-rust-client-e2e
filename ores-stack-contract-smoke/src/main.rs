@@ -1,8 +1,8 @@
 use std::{env, fs, path::PathBuf, process};
 
 use ores_api_docs::{
-    analyze_page_source, materialize_finalized_page_build, read_page_build_manifest,
-    write_page_build_outputs,
+    analyze_page_source, contract_sha256, materialize_finalized_page_build,
+    read_page_build_manifest, write_page_build_outputs, RouteMap,
 };
 
 fn main() {
@@ -82,8 +82,9 @@ pub async fn page() {}
     exercise_conflict_rejection();
     exercise_static_only_generator_requirement();
     exercise_reserved_module_admission();
+    exercise_rpc_contract_identity();
     fs::remove_dir_all(&root).unwrap();
-    println!("fiducia-cloud-test ores-stack contract smoke passed");
+    println!("fiducia-cloud-test ores-stack contract and RPC identity smoke passed");
 }
 
 fn exercise_conflict_rejection() {
@@ -163,6 +164,61 @@ pub async fn page() {}
     let error = analyze_page_source("src/pages/source/page.rs", invalid_source)
         .expect_err("data source namespaces are closed");
     assert!(error.to_string().contains("rpc:<operation> or orm:<read-surface>"));
+}
+
+fn exercise_rpc_contract_identity() {
+    let ordered_a = r#"{
+  "schema_version": "1.0.0",
+  "service": "fiducia-api-server",
+  "map": {
+    "GetUser": "/rpc/GetUser",
+    "healthz": "/healthz"
+  }
+}"#;
+    let ordered_b = r#"{
+  "map": {
+    "healthz": "/healthz",
+    "GetUser": "/rpc/GetUser"
+  },
+  "service": "fiducia-api-server",
+  "schema_version": "1.0.0"
+}"#;
+    let changed = r#"{
+  "schema_version": "1.0.0",
+  "service": "fiducia-api-server",
+  "map": {
+    "GetUser": "/rpc/v2/GetUser",
+    "healthz": "/healthz"
+  }
+}"#;
+
+    let map_a = RouteMap::from_json_str(ordered_a).expect("ordered route map A");
+    let map_b = RouteMap::from_json_str(ordered_b).expect("ordered route map B");
+    let map_changed = RouteMap::from_json_str(changed).expect("changed route map");
+    assert!(map_a.lookup("GetUser").is_some());
+    assert_eq!(
+        contract_sha256(&map_a),
+        contract_sha256(&map_b),
+        "normalized RPC identity must not depend on JSON object key order"
+    );
+    assert_ne!(
+        contract_sha256(&map_a),
+        contract_sha256(&map_changed),
+        "wire-path changes must change the normalized RPC contract identity"
+    );
+
+    let collision = r#"{
+  "schema_version": "1.0.0",
+  "service": "fiducia-api-server",
+  "map": {
+    "get_user": "/users/{id}",
+    "get_user_duplicate": "/users/{id}"
+  }
+}"#;
+    let error = RouteMap::from_json_str(collision)
+        .expect_err("duplicate HTTP method/path bindings must fail closed");
+    let message = error.to_string().to_lowercase();
+    assert!(message.contains("both bind") || message.contains("duplicate"), "{message}");
 }
 
 fn unique_temp(suffix: &str) -> PathBuf {
