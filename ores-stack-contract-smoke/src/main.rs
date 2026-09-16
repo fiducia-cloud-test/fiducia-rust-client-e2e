@@ -77,6 +77,7 @@ pub async fn page() {}
     assert!(glue.contains("PageContext") || glue.contains("axum"));
 
     exercise_conflict_rejection();
+    exercise_static_only_generator_requirement();
     fs::remove_dir_all(&root).unwrap();
     println!("fiducia-cloud-test ores-stack contract smoke passed");
 }
@@ -101,6 +102,27 @@ pub async fn page() {}
         .expect_err("ambiguous dynamic siblings must fail");
     let message = error.to_string().to_lowercase();
     assert!(message.contains("conflict") || message.contains("ambiguous"), "{message}");
+    fs::remove_dir_all(&root).unwrap();
+}
+
+fn exercise_static_only_generator_requirement() {
+    let root = unique_temp("missing-generator");
+    if root.exists() {
+        fs::remove_dir_all(&root).unwrap();
+    }
+    let dir = root.join("src/pages/docs/[slug]");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(
+        dir.join("page.rs"),
+        r#"#[ores_page(renderer = "mash", delivery = "ssr_only", render = "static_only")]
+pub async fn page() {}
+"#,
+    )
+    .unwrap();
+    let error = write_page_build_outputs(&root, &root.join(".ores-stack/first-pass"))
+        .expect_err("dynamic static_only route without gen.rs must fail");
+    let message = error.to_string();
+    assert!(message.contains("requires sibling gen.rs"), "{message}");
     fs::remove_dir_all(&root).unwrap();
 }
 
