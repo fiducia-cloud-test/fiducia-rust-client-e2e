@@ -1,4 +1,4 @@
-use std::{env, fs, path::{Path, PathBuf}, process};
+use std::{env, fs, path::PathBuf, process};
 
 use ores_api_docs::{materialize_finalized_page_build, read_page_build_manifest, write_page_build_outputs};
 
@@ -22,6 +22,7 @@ renderer = "mash",
 delivery = "ssr_only",
 render = "dynamic",
 title = "User",
+database = "read_only",
 data_sources("rpc:GetUser", "orm:user_read"),
 tags("fiducia-test", "consumer")
 )]
@@ -50,6 +51,7 @@ pub async fn page() {}
     assert_eq!(user.renderer, "mash");
     assert_eq!(user.delivery, "ssr_only");
     assert_eq!(user.render, "dynamic");
+    assert_eq!(user.database, "read_only");
     assert_eq!(user.data_sources, vec!["rpc:GetUser", "orm:user_read"]);
     assert!(user.css.is_some());
     assert!(user.wasm.is_none());
