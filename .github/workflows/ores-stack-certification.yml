@@ -1,0 +1,66 @@
+name: ores-stack certification
+
+on:
+  push:
+    branches:
+      - test/ores-stack-certification
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fiducia-test-ores-stack-certification
+  cancel-in-progress: true
+
+jobs:
+  build-dev:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Require protected test-fleet credential
+        env:
+          TEST_FLEET_READ_TOKEN: ${{ secrets.TEST_FLEET_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$TEST_FLEET_READ_TOKEN"
+
+      - name: Check out private ores-stack branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ORESoftware/ores-stack
+          ref: feat/next-build-style-cli
+          token: ${{ secrets.TEST_FLEET_READ_TOKEN }}
+          path: ores-stack
+          persist-credentials: false
+          show-progress: false
+
+      - name: Install Rust 1.88.0
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: 1.88.0
+
+      - name: Run ores-stack build/dev certification
+        working-directory: ores-stack
+        run: bash scripts/ci-build-dev-smoke.sh
+
+      - name: Collect certification evidence
+        if: always()
+        shell: bash
+        run: |
+          set -u
+          mkdir -p evidence
+          test -f ores-stack/Cargo.lock && cp ores-stack/Cargo.lock evidence/Cargo.lock || true
+          test -d ores-stack/fixtures/axum-web-server/.ores-stack && cp -R ores-stack/fixtures/axum-web-server/.ores-stack evidence/fixture-ores-stack || true
+          for f in /tmp/ores-stack-build-server.log /tmp/ores-stack-dev.log /tmp/ores-stack-build-root.html /tmp/ores-stack-build-user.html /tmp/ores-stack-dev-before.html /tmp/ores-stack-dev-after.html /tmp/ores-stack-dev-during-broken.html /tmp/ores-stack-dev-restored.html; do
+            test -f "$f" && cp "$f" evidence/ || true
+          done
+
+      - name: Upload certification evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ores-stack-certification-${{ github.sha }}
+          path: evidence/
+          if-no-files-found: warn
+          retention-days: 14
